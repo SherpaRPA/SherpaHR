@@ -1,0 +1,37 @@
+# Public assignment package: everything is local unless explicitly allowed.
+*
+!/.gitignore
+!/README.md
+!/AGENTS.md
+!/task_v6.md
+!/import example (2).xlsx
+!/.agents/
+!/.agents/skills/
+!/.agents/skills/sherpa-hr-task-lifecycle/
+!/.agents/skills/sherpa-hr-task-lifecycle/SKILL.md
+!/.agents/skills/sherpa-hr-task-lifecycle/references/
+!/.agents/skills/sherpa-hr-task-lifecycle/references/journal.md
+!/.agents/skills/sherpa-hr-task-lifecycle/references/submission.md
+!/.github/
+!/.github/ISSUE_TEMPLATE/
+!/.github/ISSUE_TEMPLATE/candidate-task.md
+!/.github/pull_request_template.md
+
+# CANDIDATE SOLUTION: in your own fork, add the paths of your solution here.
+
+# Keep these exclusions AFTER candidate additions.
+**/.git/
+**/node_modules/
+**/vendor/
+**/__pycache__/
+**/.venv/
+**/dist/
+**/coverage/
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+**/auth.json
+**/session.json
+**/session.txt
