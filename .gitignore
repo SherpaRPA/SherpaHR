@@ -1,10 +1,19 @@
-# Public assignment package: everything is local unless explicitly allowed.
+# Assignment package: only the listed paths are included.
 *
 !/.gitignore
 !/README.md
 !/AGENTS.md
-!/task_v6.md
-!/import example (2).xlsx
+!/task_v7.md
+!/compose.yaml
+!/Dockerfile
+!/.dockerignore
+!/Makefile
+!/backend/
+!/backend/**
+!/frontend/
+!/frontend/**
+!/docs/
+!/docs/**
 !/.agents/
 !/.agents/skills/
 !/.agents/skills/sherpa-hr-task-lifecycle/
@@ -27,6 +36,8 @@
 **/.venv/
 **/dist/
 **/coverage/
+**/.angular/
+**/var/
 **/.env
 **/.env.*
 !**/.env.example
