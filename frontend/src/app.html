@@ -1,0 +1,70 @@
+<header class="topbar">
+  <a class="brand" href="/">◈ <span>Project Desk</span></a>
+  <span class="demo-tag">Демонстрационное приложение</span>
+  <label class="persona">Демо-пользователь
+    <select aria-label="Демо-пользователь" [value]="api.userId" (change)="switchUser($any($event.target).value)">
+      <option value="1">Анна · руководитель</option><option value="2">Борис · разработчик</option><option value="3">Вера · аналитик</option>
+    </select>
+  </label>
+</header>
+<div class="shell">
+  <nav class="sidebar" aria-label="Проекты">
+    <div class="nav-heading">Ваши проекты <span>{{projects().length}}</span></div>
+    @for (p of projects(); track p.id) {
+      <button class="project-link" [class.selected]="project()?.id === p.id" [attr.aria-current]="project()?.id === p.id ? 'page' : null" (click)="selectProject(p)">
+        <span class="project-icon">{{p.archived ? '▤' : '▧'}}</span><span>{{p.name}}<small>{{p.archived ? 'Архив' : p.task_count + ' задач'}}</small></span>
+      </button>
+    }
+    <div class="sidebar-note">Задачи, договорённости<br>и история команды.</div>
+  </nav>
+  <main>
+    @if (error()) { <div role="alert" class="alert error">{{error()}}</div> }
+    @if (notice()) { <div role="status" class="alert success">{{notice()}}</div> }
+    @if (project(); as p) {
+      <div class="breadcrumb">Проекты <span>/</span> {{p.archived ? 'Архив' : 'Рабочее пространство'}}</div>
+      <div class="page-heading"><div><h1>{{p.name}}</h1><p>{{p.description}}</p></div>
+        @if (!p.archived) { <button class="primary" (click)="createTask()" [disabled]="loading() || saving()">＋ Новая задача</button> }
+      </div>
+      <div class="project-meta"><span>Руководитель: {{userName(p.owner_id)}}</span><span>{{p.members.length}} участника</span>@if (p.archived) { <span class="badge">Только чтение</span> }</div>
+      <section class="task-section" aria-label="Задачи проекта">
+        <div class="toolbar"><h2>Задачи <span>{{tasks().length}}</span></h2><div class="filters">
+          <input aria-label="Поиск задач" placeholder="Найти задачу…" [(ngModel)]="search">
+          <select aria-label="Фильтр статуса" [(ngModel)]="status"><option value="">Все статусы</option>@for (s of statuses; track s.value) { <option [value]="s.value">{{s.label}}</option> }</select>
+        </div></div>
+        @if (loading()) { <div class="empty" role="status">Загружаем задачи…</div> }
+        @else {
+          <div class="table-scroll"><table><thead><tr><th>Задача</th><th>Статус</th><th>Исполнитель</th><th>Срок</th></tr></thead><tbody>
+            @for (task of filteredTasks(); track task.id) {
+              <tr><td><button class="task-title" (click)="openTask(task)"><span class="task-number">#{{task.id}}</span>{{task.title}}</button></td><td><span class="badge" [class]="'badge ' + task.status">{{statusLabel(task.status)}}</span></td><td>{{userName(task.assignee_id)}}</td><td>{{task.due_at ? (task.due_at | date:'dd.MM.yyyy HH:mm':'UTC') : 'Без срока'}}</td></tr>
+            } @empty { <tr><td colspan="4" class="empty">Задач по этим условиям нет.</td></tr> }
+          </tbody></table></div>
+        }
+      </section>
+      <p class="footnote">Время в приложении указано в UTC. Все данные демонстрационные.</p>
+    } @else if (loading()) { <div class="empty" role="status">Загружаем проекты…</div> }
+    @else if (error()) { <button (click)="load()">Повторить загрузку</button> }
+    @else { <div class="empty">У вас пока нет проектов.</div> }
+  </main>
+  @if (detail() || creating()) {
+    <aside class="detail" aria-label="Карточка задачи">
+      <div class="drawer-heading"><span>{{creating() ? 'Новая задача' : 'Задача #' + detail()?.id}}</span><button aria-label="Закрыть карточку" (click)="closeDetail()">✕</button></div>
+      <form (ngSubmit)="saveTask()">
+        <fieldset [disabled]="project()?.archived || saving()">
+          <label>Название<input name="title" [(ngModel)]="draft.title" required maxlength="200"></label>
+          <label>Описание<textarea name="description" [(ngModel)]="draft.description" rows="4" maxlength="5000"></textarea></label>
+          <div class="form-row"><label>Статус<select name="status" aria-label="Статус" [(ngModel)]="draft.status">@for (s of statuses; track s.value) { <option [value]="s.value">{{s.label}}</option> }</select></label>
+          <label>Исполнитель<select name="assignee" aria-label="Исполнитель" [(ngModel)]="draft.assignee_id"><option [ngValue]="null">Не назначен</option>@for (u of project()?.members; track u.id) { <option [ngValue]="u.id">{{u.name}}</option> }</select></label></div>
+          <label>Срок (UTC)<input type="datetime-local" name="due" [(ngModel)]="draft.due_at"></label>
+          @if (!project()?.archived) { <button type="submit" class="primary" [disabled]="!draft.title.trim()">{{saving() ? 'Сохраняем…' : 'Сохранить задачу'}}</button> }
+        </fieldset>
+      </form>
+      @if (detail(); as task) {
+        <section class="comments"><h2>Обсуждение <span>{{task.comments.length}}</span></h2>
+          @for (c of task.comments; track c.id) { <article><strong>{{c.author}}</strong><time>{{c.created_at | date:'dd.MM.yyyy HH:mm':'UTC'}}</time><p>{{c.body}}</p></article> }
+          @empty { <p class="muted">Комментариев пока нет.</p> }
+          @if (!project()?.archived) { <form (ngSubmit)="addComment()"><label>Комментарий<textarea name="comment" [(ngModel)]="comment" rows="3" required maxlength="2000" [disabled]="saving()"></textarea></label><button type="submit" [disabled]="!comment.trim() || saving()">Добавить комментарий</button></form> }
+        </section>
+      }
+    </aside>
+  }
+</div>
