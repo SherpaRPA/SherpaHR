@@ -113,6 +113,21 @@ try {
     check(count($response['data']) === 6, 'initialization does not duplicate or reset data');
     check(request('GET', '/api/tasks/9999')[0] === 404, 'missing task returns 404');
     check(request('GET', '/api/unknown')[0] === 404, 'unknown route returns 404');
+    [$status, $response] = request('GET', '/api/attention');
+    $attentionIds = array_column($response['data'], 'id');
+    check($status === 200 && is_array($response['data']), 'attention overview is available');
+    check(in_array(1, $attentionIds, true) && in_array(5, $attentionIds, true) && in_array(7, $attentionIds, true), 'attention surfaces blocked and unassigned tasks');
+    check(!in_array(3, $attentionIds, true) && !in_array(9, $attentionIds, true), 'attention hides done tasks');
+    check(!in_array(10, $attentionIds, true), 'attention hides archived projects');
+    check(!in_array(12, $attentionIds, true), 'attention hides tasks without a signal');
+    $attentionById = [];
+    foreach ($response['data'] as $item) { $attentionById[$item['id']] = $item; }
+    check(in_array('blocked', $attentionById[1]['reasons'], true) && $attentionById[1]['project_name'] !== '', 'attention item carries reason and project name');
+    check(in_array('unassigned', $attentionById[7]['reasons'], true), 'attention flags an unassigned task');
+    check($attentionById[1]['comment_count'] === 2, 'attention includes comment count');
+    check(!in_array(11, $attentionIds, true), 'attention respects project membership');
+    [$status, $response] = request('GET', '/api/attention', null, 3);
+    check(in_array(11, array_column($response['data'], 'id'), true), 'attention shows a private project to its member');
     echo "PASS: $count API checks\n";
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . PHP_EOL . file_get_contents($directory . '/server.log'));
