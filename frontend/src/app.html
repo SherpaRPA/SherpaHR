@@ -8,10 +8,13 @@
   </label>
 </header>
 <div class="shell">
-  <nav class="sidebar" aria-label="Проекты">
+  <nav class="sidebar" aria-label="Навигация">
+    <button class="project-link attention-link" [class.selected]="attentionActive()" [attr.aria-current]="attentionActive() ? 'page' : null" (click)="openAttention()">
+      <span class="project-icon">◉</span><span>Требует внимания<small>Сводка по проектам</small></span>
+    </button>
     <div class="nav-heading">Ваши проекты <span>{{projects().length}}</span></div>
     @for (p of projects(); track p.id) {
-      <button class="project-link" [class.selected]="project()?.id === p.id" [attr.aria-current]="project()?.id === p.id ? 'page' : null" (click)="selectProject(p)">
+      <button class="project-link" [class.selected]="!attentionActive() && project()?.id === p.id" [attr.aria-current]="!attentionActive() && project()?.id === p.id ? 'page' : null" (click)="selectProject(p)">
         <span class="project-icon">{{p.archived ? '▤' : '▧'}}</span><span>{{p.name}}<small>{{p.archived ? 'Архив' : p.task_count + ' задач'}}</small></span>
       </button>
     }
@@ -20,7 +23,38 @@
   <main>
     @if (error()) { <div role="alert" class="alert error">{{error()}}</div> }
     @if (notice()) { <div role="status" class="alert success">{{notice()}}</div> }
-    @if (project(); as p) {
+    @if (attentionActive()) {
+      <div class="breadcrumb">Обзор <span>/</span> Требует внимания</div>
+      <div class="page-heading"><div><h1>Требует внимания</h1><p>Задачи по всем вашим активным проектам, которые могут потребовать вашего вмешательства.</p></div></div>
+      <section class="task-section" aria-label="Задачи, требующие внимания">
+        <div class="toolbar"><h2>Задачи <span>{{attention().length}}</span></h2></div>
+        @if (loading()) { <div class="empty" role="status">Загружаем сводку…</div> }
+        @else if (attention().length === 0) { <div class="empty">Сейчас задач, требующих внимания, нет.</div> }
+        @else {
+          <div class="attention-list">
+            @for (item of attention(); track item.id) {
+              <button class="attention-item" (click)="openTask(item)">
+                <div class="attention-item-head">
+                  <span class="task-number">#{{item.id}}</span>
+                  <strong class="attention-title">{{item.title}}</strong>
+                  <span class="badge" [class]="'badge ' + item.status">{{statusLabel(item.status)}}</span>
+                </div>
+                <div class="attention-item-meta">
+                  <span class="project-chip">{{item.project_name}}</span>
+                  <span>Исполнитель: {{userName(item.assignee_id)}}</span>
+                  <span>{{item.due_at ? 'Срок: ' + (item.due_at | date:'dd.MM.yyyy HH:mm':'UTC') : 'Без срока'}}</span>
+                  @if (item.comment_count) { <span>Комментариев: {{item.comment_count}}</span> }
+                </div>
+                <div class="attention-reasons">
+                  @for (r of item.reasons; track r) { <span class="reason" [class]="'reason ' + r">{{reasonLabel(r)}}</span> }
+                </div>
+              </button>
+            }
+          </div>
+        }
+      </section>
+      <p class="footnote">Задачи сортируются по приоритету вмешательства. Время указано в UTC.</p>
+    } @else if (project(); as p) {
       <div class="breadcrumb">Проекты <span>/</span> {{p.archived ? 'Архив' : 'Рабочее пространство'}}</div>
       <div class="page-heading"><div><h1>{{p.name}}</h1><p>{{p.description}}</p></div>
         @if (!p.archived) { <button class="primary" (click)="createTask()" [disabled]="loading() || saving()">＋ Новая задача</button> }

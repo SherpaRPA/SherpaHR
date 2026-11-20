@@ -5,3 +5,10 @@ export interface Task { id: number; project_id: number; title: string; descripti
 export interface Comment { id: number; task_id: number; user_id: number; body: string; created_at: string; author: string }
 export interface TaskDetail extends Task { comments: Comment[] }
 export interface Context { user: User; users: User[]; server_now: string; seeded_at: string }
+export type AttentionReason = 'blocked' | 'overdue' | 'unassigned';
+export interface AttentionItem extends Task {
+  project_name: string;
+  reasons: AttentionReason[];
+  last_comment_at: string | null;
+  comment_count: number;
+}

@@ -58,10 +58,62 @@ final class Application
             $this->respond($projects);
             return;
         }
+        if ($method === 'GET' && $path === '/api/attention') {
+            $now = gmdate('Y-m-d\TH:i:s\Z');
+            $tasks = $this->all(
+                "SELECT t.*, p.name AS project_name,
+                        (SELECT MAX(created_at) FROM comments c WHERE c.task_id = t.id) AS last_comment_at,
+                        (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id) AS comment_count
+                 FROM tasks t
+                 JOIN projects p ON p.id = t.project_id
+                 JOIN project_members m ON m.project_id = t.project_id
+                 WHERE m.user_id = ? AND p.archived = 0 AND t.status != 'done'
+                 ORDER BY t.id",
+                [$this->userId]
+            );
+            $items = [];
+            foreach ($tasks as $task) {
+                $reasons = [];
+                $score = 0;
+                if ($task['status'] === 'blocked') {
+                    $reasons[] = 'blocked';
+                    $score += 4;
+                }
+                if ($task['due_at'] !== null && $task['due_at'] < $now) {
+                    $reasons[] = 'overdue';
+                    $score += 2;
+                }
+                if ($task['assignee_id'] === null) {
+                    $reasons[] = 'unassigned';
+                    $score += 1;
+                }
+                if ($score === 0) {
+                    continue;
+                }
+                $task['reasons'] = $reasons;
+                $task['comment_count'] = (int) $task['comment_count'];
+                $task['_score'] = $score;
+                $items[] = $task;
+            }
+            usort($items, function (array $a, array $b): int {
+                if ($a['_score'] !== $b['_score']) {
+                    return $b['_score'] <=> $a['_score'];
+                }
+                $aDue = $a['due_at'] ?? "\x7F";
+                $bDue = $b['due_at'] ?? "\x7F";
+                return $aDue <=> $bDue ?: ($a['id'] <=> $b['id']);
+            });
+            foreach ($items as &$item) {
+                unset($item['_score']);
+            }
+            unset($item);
+            $this->respond($items);
+            return;
+        }
         if (preg_match('#^/api/projects/(\d+)/tasks$#', $path, $match)) {
             $project = $this->project((int) $match[1]);
             if ($method === 'GET') {
-                $this->respond($this->all('SELECT t.* FROM tasks t JOIN users u ON u.id=t.assignee_id WHERE t.project_id=? ORDER BY t.id', [$project['id']]));
+                $this->respond($this->all('SELECT t.* FROM tasks t WHERE t.project_id=? ORDER BY t.id', [$project['id']]));
                 return;
             }
             if ($method === 'POST') {
@@ -102,8 +154,12 @@ final class Application
             $task = $this->task((int) $match[1]);
             $this->writable($this->project($task['project_id']));
             $data = $this->input();
-            $this->text($data['body'] ?? null, 'Комментарий', 5000, true);
-            throw new ApiError('Добавление комментариев пока не реализовано', 501);
+            $body = $this->text($data['body'] ?? null, 'Комментарий', 5000, true);
+            $stmt = $this->db->prepare('INSERT INTO comments (task_id, user_id, body, created_at) VALUES (?, ?, ?, ?)');
+            $stmt->execute([$task['id'], $this->userId, $body, gmdate('Y-m-d\TH:i:s\Z')]);
+            $comment = $this->one('SELECT c.*, u.name AS author FROM comments c JOIN users u ON u.id=c.user_id WHERE c.id = ?', [(int) $this->db->lastInsertId()]);
+            $this->respond($comment, 201);
+            return;
         }
         throw new ApiError('Маршрут не найден', 404);
     }
