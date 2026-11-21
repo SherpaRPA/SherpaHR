@@ -65,7 +65,7 @@
                   @for (reason of row.reasons; track reason) { <span class="badge" [class.blocked]="reason === 'blocked'">{{reasonLabels[reason]}}</span> }
                 </div>
                 @if (row.latest_comment; as comment) {
-                  <p class="attention-excerpt"><strong>Последний комментарий · {{comment.author}}:</strong> {{comment.excerpt}}</p>
+                  <p class="attention-excerpt">Последний комментарий · {{comment.author}}: <i>{{comment.excerpt}}</i></p>
                 }
               </li>
             }
