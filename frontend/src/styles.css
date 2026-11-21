@@ -498,10 +498,12 @@ fieldset {
 .attention-list .task-title .task-number {
   font-weight:500;
 }
-.attention-reasons {
+.attention-list .attention-task-heading {
   display:flex;
   flex-wrap:wrap;
+  align-items:baseline;
   gap:6px;
+  overflow-wrap:anywhere;
 }
 .attention-excerpt {
   overflow-wrap:anywhere;
