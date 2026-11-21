@@ -2,6 +2,7 @@ import { afterNextRender, Component, computed, ElementRef, inject, Injector, sig
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Api } from './api';
+import { formatCommentAge } from './comment-age';
 import { AttentionReason, AttentionTask, Comment, Context, Project, Task, TaskDetail, TaskStatus } from './models';
 
 @Component({
@@ -22,6 +23,7 @@ export class AppComponent {
     return task ? this.projects().find(p => p.id === task.project_id) : this.project();
   });
   attention = signal<AttentionTask[]>([]);
+  private readonly attentionLoadedAt = signal(0);
   attentionLoading = signal(false);
   attentionError = signal('');
   loading = signal(false);
@@ -106,7 +108,10 @@ export class AppComponent {
     this.attentionError.set('');
     try {
       const rows = await this.api.request<AttentionTask[]>('/attention');
-      if (generation === this.attentionGeneration) this.attention.set(rows);
+      if (generation === this.attentionGeneration) {
+        this.attentionLoadedAt.set(Date.now());
+        this.attention.set(rows);
+      }
     } catch (error) {
       if (generation === this.attentionGeneration) {
         this.attentionError.set(error instanceof Error ? error.message : 'Не удалось выполнить запрос');
@@ -114,6 +119,10 @@ export class AppComponent {
     } finally {
       if (generation === this.attentionGeneration) this.attentionLoading.set(false);
     }
+  }
+
+  commentAge(createdAt: string): string | null {
+    return formatCommentAge(createdAt, this.attentionLoadedAt());
   }
 
   async selectProject(project: Project): Promise<void> {
