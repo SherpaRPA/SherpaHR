@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Api } from './api';
 import { formatCommentAge } from './comment-age';
+import { sortByLatestComment } from './attention-sort';
 import { AttentionReason, AttentionTask, Comment, Context, Project, Task, TaskDetail, TaskStatus } from './models';
 
 @Component({
@@ -22,7 +23,12 @@ export class AppComponent {
     const task = this.detail();
     return task ? this.projects().find(p => p.id === task.project_id) : this.project();
   });
-  attention = signal<AttentionTask[]>([]);
+  private readonly attentionRows = signal<AttentionTask[]>([]);
+  readonly attentionSort = signal<'comments' | 'signals'>('comments');
+  readonly attention = computed(() => {
+    const rows = this.attentionRows();
+    return this.attentionSort() === 'comments' ? sortByLatestComment(rows) : rows;
+  });
   private readonly attentionLoadedAt = signal(0);
   attentionLoading = signal(false);
   attentionError = signal('');
@@ -74,6 +80,7 @@ export class AppComponent {
   switchUser(value: string): void {
     ++this.personaGeneration;
     this.api.userId = Number(value);
+    this.attentionSort.set('comments');
     this.resetAttention();
     this.project.set(null);
     this.projects.set([]);
@@ -96,7 +103,7 @@ export class AppComponent {
 
   private resetAttention(): void {
     ++this.attentionGeneration;
-    this.attention.set([]);
+    this.attentionRows.set([]);
     this.attentionLoading.set(false);
     this.attentionError.set('');
   }
@@ -110,7 +117,7 @@ export class AppComponent {
       const rows = await this.api.request<AttentionTask[]>('/attention');
       if (generation === this.attentionGeneration) {
         this.attentionLoadedAt.set(Date.now());
-        this.attention.set(rows);
+        this.attentionRows.set(rows);
       }
     } catch (error) {
       if (generation === this.attentionGeneration) {

@@ -46,11 +46,14 @@
     @else if (!context() && error()) { <button (click)="load()">Повторить загрузку</button> }
     @else {
       <div class="breadcrumb">Обзор <span>/</span> Активные проекты</div>
-      <div class="page-heading">
+      <div class="page-heading attention-heading">
         <div><h1>Требует внимания</h1>
           <p>Проверяем блокировки, просрочку и отсутствие исполнителя в ваших активных проектах, где вы руководитель. Просьбы только в тексте обсуждения не учитываются.</p>
         </div>
-        <button (click)="refreshAttention()" [disabled]="attentionLoading()">{{attentionError() ? 'Повторить обновление' : 'Обновить'}}</button>
+        <div class="attention-actions">
+          <button type="button" (click)="attentionSort.set(attentionSort() === 'comments' ? 'signals' : 'comments')">Сортировка: {{attentionSort() === 'comments' ? 'по комментариям' : 'по сигналам'}}</button>
+          <button type="button" (click)="refreshAttention()" [disabled]="attentionLoading()">{{attentionError() ? 'Повторить обновление' : 'Обновить'}}</button>
+        </div>
       </div>
       <section class="task-section" aria-label="Очередь внимания" [attr.aria-busy]="attentionLoading()">
         @if (attentionError()) { <div class="alert error" role="alert">Не удалось обновить очередь: {{attentionError()}}</div> }

@@ -201,6 +201,25 @@ h1 {
   background:#fff;
   overflow:hidden;
 }
+.attention-heading {
+  flex-wrap:wrap;
+}
+.attention-heading > :first-child {
+  flex:1;
+  min-inline-size:min(100%, 20rem);
+  overflow-wrap:anywhere;
+}
+.attention-actions {
+  display:flex;
+  flex-wrap:nowrap;
+  min-inline-size:0;
+  max-inline-size:100%;
+  gap:8px;
+}
+.attention-actions > button {
+  min-inline-size:0;
+  overflow-wrap:anywhere;
+}
 .page-heading + .task-section {
   margin-top:24px;
 }
