@@ -510,6 +510,10 @@ fieldset {
 }
 .attention-excerpt {
   overflow-wrap:anywhere;
-  white-space:pre-wrap;
   margin-bottom:0;
+}
+.attention-excerpt-body {
+  display:block;
+  margin-top:4px;
+  white-space:pre-wrap;
 }
