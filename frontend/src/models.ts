@@ -9,5 +9,5 @@ export type AttentionReason = 'blocked' | 'overdue' | 'unassigned';
 export interface AttentionTask extends Pick<Task, 'id' | 'project_id' | 'title' | 'assignee_id' | 'due_at'> {
   project_name: string;
   reasons: AttentionReason[];
-  latest_comment: { author: string; excerpt: string } | null;
+  latest_comment: { author: string; created_at: string; excerpt: string } | null;
 }

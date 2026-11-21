@@ -126,7 +126,7 @@ final class Application
                 FROM project_members m JOIN projects p ON p.id=m.project_id JOIN tasks t ON t.project_id=p.id
                 WHERE m.user_id=? AND p.owner_id=m.user_id AND p.archived=0 AND t.status <> 'done'
             )
-            SELECT s.*, c.body, u.name AS author FROM signals s
+            SELECT s.*, c.body, c.created_at, u.name AS author FROM signals s
             LEFT JOIN comments c ON c.id=(SELECT id FROM comments WHERE task_id=s.id ORDER BY id DESC LIMIT 1)
             LEFT JOIN users u ON u.id=c.user_id
             WHERE blocked OR overdue OR unassigned
@@ -146,10 +146,11 @@ final class Application
                 preg_match('/^.{0,160}/us', $row['body'], $prefix);
                 $row['latest_comment'] = [
                     'author' => $row['author'],
+                    'created_at' => $row['created_at'],
                     'excerpt' => $prefix[0] . ($prefix[0] !== $row['body'] ? '…' : ''),
                 ];
             }
-            unset($row['body'], $row['author']);
+            unset($row['body'], $row['created_at'], $row['author']);
         }
         return $rows;
     }

@@ -104,9 +104,17 @@ try {
     check(array_column(request('GET', '/api/attention')[1]['data'], 'id') === [5, 1, $boundaryId, 2, 7], 'equal deadlines break ties by ID');
     request('PATCH', "/api/tasks/$boundaryId", ['due_at' => null, 'version' => 3]);
     check(array_column(request('GET', '/api/attention')[1]['data'], 'id') === [5, 1, $boundaryId, 2, 7], 'undated tasks follow dated tasks in their group');
+    $rows = array_column(request('GET', '/api/attention')[1]['data'], null, 'id');
+    check(array_key_exists('latest_comment', $rows[$boundaryId]) && $rows[$boundaryId]['latest_comment'] === null,
+        'latest comment is null for a task without comments');
     [$status, $response] = request('POST', '/api/tasks/7/comments', ['body' => str_repeat('я', 161)], 2);
     $row = array_column(request('GET', '/api/attention')[1]['data'], null, 'id')[7];
-    check($status === 201 && $row['latest_comment'] === ['author' => 'Борис · разработчик', 'excerpt' => str_repeat('я', 160) . '…'], 'latest comment updated with Unicode excerpt');
+    check($status === 201 && $row['latest_comment'] === [
+        'author' => 'Борис · разработчик',
+        'created_at' => $response['data']['created_at'],
+        'excerpt' => str_repeat('я', 160) . '…',
+    ], 'latest comment updated with creation time, author and Unicode excerpt');
+    check(!array_key_exists('created_at', $row), 'comment creation time is not exposed at the attention row root');
     check(request('GET', '/api/projects', null, 999)[0] === 401, 'unknown persona rejected');
     [$status, $response] = request('GET', '/api/projects/2/tasks');
     $projectTasks = array_column($response['data'], null, 'id');
