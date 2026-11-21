@@ -479,3 +479,32 @@ fieldset {
     flex-wrap:wrap;
   }
 }
+.attention-list {
+  list-style:none;
+  margin:0;
+  padding:0;
+}
+.attention-list li {
+  padding:16px 18px;
+  border-bottom:1px solid #edf0f3;
+}
+.attention-list li:last-child {
+  border-bottom:0;
+}
+.attention-list .task-title {
+  font-size:14px;
+  font-weight:600;
+}
+.attention-list .task-title .task-number {
+  font-weight:500;
+}
+.attention-reasons {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.attention-excerpt {
+  overflow-wrap:anywhere;
+  white-space:pre-wrap;
+  margin-bottom:0;
+}
