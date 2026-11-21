@@ -18,7 +18,15 @@ $base = 'http://' . $address;
 $environment = getenv();
 $environment['DB_PATH'] = $directory . '/test.sqlite';
 $environment['SEED_NOW'] = '2026-11-11T08:00:00Z';
-$process = proc_open([PHP_BINARY, '-S', $address, __DIR__ . '/../router.php'],
+// Inject a fixed clock only in this disposable server, not through an HTTP parameter.
+$router = $directory . '/router.php';
+file_put_contents($router, <<<'PHP'
+<?php
+require 'backend/src/Database.php';
+require 'backend/src/Application.php';
+(new Application(Database::connect(), fn() => getenv('SEED_NOW')))->run();
+PHP);
+$process = proc_open([PHP_BINARY, '-S', $address, $router],
     [0 => ['pipe', 'r'], 1 => ['file', $directory . '/server.log', 'a'], 2 => ['file', $directory . '/server.log', 'a']],
     $pipes, dirname(__DIR__, 2), $environment);
 if (!is_resource($process)) {
@@ -73,7 +81,44 @@ try {
     check(array_column($response['data'], 'id') === [1, 2, 4], 'Boris has different membership');
     [$status, $response] = request('GET', '/api/projects', null, 3);
     check(array_column($response['data'], 'id') === [1, 3, 5], 'Vera can see her separate project');
+    [$status, $response] = request('GET', '/api/attention');
+    $attention = $response['data'];
+    check($status === 200 && array_column($attention, 'id') === [5, 1, 2, 7], 'Anna sees only active unfinished signals in priority order');
+    check(array_column($attention, 'reasons', 'id') === [5 => ['blocked', 'overdue'], 1 => ['blocked'], 2 => ['overdue'], 7 => ['unassigned']], 'combined and isolated signals');
+    check(request('GET', '/api/attention', null, 2) === [200, ['data' => []]], 'Boris is a member but leads no projects');
+    [$status, $response] = request('GET', '/api/attention', null, 3);
+    check($status === 200 && array_column($response['data'], 'id') === [11], 'Vera sees only her own project signals');
+    $db = new PDO('sqlite:' . $environment['DB_PATH']);
+    $db->exec('DELETE FROM project_members WHERE project_id=2 AND user_id=1');
+    check(array_column(request('GET', '/api/attention')[1]['data'], 'id') === [1, 2], 'ownership without membership does not grant attention access');
+    $db->exec('INSERT INTO project_members VALUES (2,1)');
+    $db = null;
+    [$status, $boundary] = request('POST', '/api/projects/1/tasks', [
+        'title' => 'Deadline boundary', 'assignee_id' => 2, 'due_at' => $environment['SEED_NOW'],
+    ]);
+    $boundaryId = $boundary['data']['id'];
+    check($status === 201 && array_column(request('GET', '/api/attention')[1]['data'], 'id') === [5, 1, 2, 7], 'equal deadline and assigned task without deadline are not overdue');
+    request('PATCH', "/api/tasks/$boundaryId", ['due_at' => '2026-11-11T07:59:59Z', 'version' => 1]);
+    check(array_column(request('GET', '/api/attention')[1]['data'], 'id') === [5, 1, 2, $boundaryId, 7], 'one second before clock is overdue');
+    request('PATCH', "/api/tasks/$boundaryId", ['status' => 'blocked', 'due_at' => '2026-11-12T08:00:00Z', 'version' => 2]);
+    check(array_column(request('GET', '/api/attention')[1]['data'], 'id') === [5, 1, $boundaryId, 2, 7], 'equal deadlines break ties by ID');
+    request('PATCH', "/api/tasks/$boundaryId", ['due_at' => null, 'version' => 3]);
+    check(array_column(request('GET', '/api/attention')[1]['data'], 'id') === [5, 1, $boundaryId, 2, 7], 'undated tasks follow dated tasks in their group');
+    $rows = array_column(request('GET', '/api/attention')[1]['data'], null, 'id');
+    check(array_key_exists('latest_comment', $rows[$boundaryId]) && $rows[$boundaryId]['latest_comment'] === null,
+        'latest comment is null for a task without comments');
+    [$status, $response] = request('POST', '/api/tasks/7/comments', ['body' => str_repeat('я', 161)], 2);
+    $row = array_column(request('GET', '/api/attention')[1]['data'], null, 'id')[7];
+    check($status === 201 && $row['latest_comment'] === [
+        'author' => 'Борис · разработчик',
+        'created_at' => $response['data']['created_at'],
+        'excerpt' => str_repeat('я', 160) . '…',
+    ], 'latest comment updated with creation time, author and Unicode excerpt');
+    check(!array_key_exists('created_at', $row), 'comment creation time is not exposed at the attention row root');
     check(request('GET', '/api/projects', null, 999)[0] === 401, 'unknown persona rejected');
+    [$status, $response] = request('GET', '/api/projects/2/tasks');
+    $projectTasks = array_column($response['data'], null, 'id');
+    check($status === 200 && isset($projectTasks[7]) && $projectTasks[7]['assignee_id'] === null, 'project lists the seeded unassigned task');
     check(request('GET', '/api/projects/5/tasks')[0] === 404, 'hidden project is not disclosed');
     check(request('GET', '/api/tasks/11')[0] === 404, 'hidden task is not disclosed');
     check(request('PATCH', '/api/tasks/11', ['title' => 'Forbidden', 'version' => 1])[0] === 404, 'hidden task cannot be edited');
@@ -105,12 +150,22 @@ try {
     check(request('PATCH', '/api/tasks/' . $task['id'], ['title' => 'Stale', 'version' => 1])[0] === 409, 'stale write does not overwrite newer data');
     check(request('POST', '/api/tasks/' . $task['id'] . '/comments', ['body' => ' '])[0] === 422, 'empty comment rejected');
     [$status, $response] = request('POST', '/api/tasks/' . $task['id'] . '/comments', ['body' => '<script>window.pwned=1</script>'], 2);
-    check($status === 201 && $response['data']['author'] === 'Борис · разработчик', 'comment records acting user');
+    $comment = $response['data'];
+    check($status === 201 && $comment['author'] === 'Борис · разработчик' && $comment['user_id'] === 2, 'comment records acting user');
+    check((bool) preg_match('/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/', $comment['created_at']), 'comment timestamp is UTC');
+    $limit = str_repeat('я', 2500);
+    check(request('POST', '/api/tasks/' . $task['id'] . '/comments', ['body' => $limit . 'x'])[0] === 422, '5001 UTF-8 bytes rejected');
+    [$status, $response] = request('POST', '/api/tasks/' . $task['id'] . '/comments', ['body' => $limit]);
+    check($status === 201 && $response['data']['body'] === $limit, '5000 UTF-8 bytes accepted');
     [$status, $response] = request('GET', '/api/tasks/' . $task['id']);
-    check($response['data']['status'] === 'done' && count($response['data']['comments']) === 1, 'changes persist across requests');
+    check($status === 200 && $response['data']['status'] === 'done' && count($response['data']['comments']) === 2, 'changes persist across requests');
+    check($response['data']['version'] === 2, 'comments do not change task version');
+    check($response['data']['comments'][0] === $comment, 'saved comment matches discussion response');
     check($response['data']['comments'][0]['body'] === '<script>window.pwned=1</script>', 'comment content retained as plain data');
     [$status, $response] = request('GET', '/api/projects/1/tasks');
-    check(count($response['data']) === 6, 'initialization does not duplicate or reset data');
+    $projectTasks = array_column($response['data'], null, 'id');
+    check(isset($projectTasks[$task['id']]) && $projectTasks[$task['id']]['assignee_id'] === null, 'task remains listed after unassignment');
+    check(array_keys($projectTasks) === [1, 2, 3, 4, 12, $boundaryId, $task['id']], 'initialization does not duplicate or reset data');
     check(request('GET', '/api/tasks/9999')[0] === 404, 'missing task returns 404');
     check(request('GET', '/api/unknown')[0] === 404, 'unknown route returns 404');
     echo "PASS: $count API checks\n";

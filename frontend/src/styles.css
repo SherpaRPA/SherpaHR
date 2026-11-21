@@ -201,6 +201,28 @@ h1 {
   background:#fff;
   overflow:hidden;
 }
+.attention-heading {
+  flex-wrap:wrap;
+}
+.attention-heading > :first-child {
+  flex:1;
+  min-inline-size:min(100%, 20rem);
+  overflow-wrap:anywhere;
+}
+.attention-actions {
+  display:flex;
+  flex-wrap:nowrap;
+  min-inline-size:0;
+  max-inline-size:100%;
+  gap:8px;
+}
+.attention-actions > button {
+  min-inline-size:0;
+  overflow-wrap:anywhere;
+}
+.page-heading + .task-section {
+  margin-top:24px;
+}
 .toolbar {
   display:flex;
   align-items:center;
@@ -478,4 +500,39 @@ fieldset {
     gap:12px;
     flex-wrap:wrap;
   }
+}
+.attention-list {
+  list-style:none;
+  margin:0;
+  padding:0;
+}
+.attention-list li {
+  padding:16px 18px;
+  border-bottom:1px solid #edf0f3;
+}
+.attention-list li:last-child {
+  border-bottom:0;
+}
+.attention-list .task-title {
+  font-size:14px;
+  font-weight:600;
+}
+.attention-list .task-title .task-number {
+  font-weight:500;
+}
+.attention-list .attention-task-heading {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:6px;
+  overflow-wrap:anywhere;
+}
+.attention-excerpt {
+  overflow-wrap:anywhere;
+  margin-bottom:0;
+}
+.attention-excerpt-body {
+  display:block;
+  margin-top:4px;
+  white-space:pre-wrap;
 }
