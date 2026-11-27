@@ -40,6 +40,25 @@ final class Application
 
     private function dispatch(string $method, string $path): void
     {
+        if ($method === 'GET' && $path === '/api/attention') {
+            $now = gmdate('Y-m-d\TH:i:s\Z');
+            $tasks = $this->all(<<<'SQL'
+                SELECT t.*, p.name AS project_name
+                FROM tasks t
+                JOIN projects p ON p.id=t.project_id
+                JOIN project_members m ON m.project_id=p.id
+                WHERE m.user_id=? AND p.archived=0 AND t.status<>'done'
+                  AND (t.status='blocked' OR (t.due_at IS NOT NULL AND t.due_at<?))
+                ORDER BY CASE WHEN t.status='blocked' THEN 0 ELSE 1 END,
+                         t.due_at IS NULL, t.due_at, t.id
+                SQL, [$this->userId, $now]);
+            foreach ($tasks as &$task) {
+                $task['blocked'] = $task['status'] === 'blocked';
+                $task['overdue'] = $task['due_at'] !== null && $task['due_at'] < $now;
+            }
+            $this->respond(['server_now' => $now, 'tasks' => $tasks]);
+            return;
+        }
         if ($method === 'GET' && $path === '/api/context') {
             $this->respond([
                 'user' => $this->one('SELECT * FROM users WHERE id = ?', [$this->userId]),

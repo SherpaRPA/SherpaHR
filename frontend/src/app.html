@@ -9,6 +9,9 @@
 </header>
 <div class="shell">
   <nav class="sidebar" aria-label="Проекты">
+    <button class="project-link attention-link" [class.selected]="overview()" [attr.aria-current]="overview() ? 'page' : null" (click)="selectAttention()" [disabled]="loading() && !context()">
+      <span class="project-icon" aria-hidden="true">◉</span><span>Требуют внимания<small>Обзор активных проектов</small></span>
+    </button>
     <div class="nav-heading">Ваши проекты <span>{{projects().length}}</span></div>
     @for (p of projects(); track p.id) {
       <button class="project-link" [class.selected]="project()?.id === p.id" [attr.aria-current]="project()?.id === p.id ? 'page' : null" (click)="selectProject(p)">
@@ -20,7 +23,33 @@
   <main>
     @if (error()) { <div role="alert" class="alert error">{{error()}}</div> }
     @if (notice()) { <div role="status" class="alert success">{{notice()}}</div> }
-    @if (project(); as p) {
+    @if (loading() && !context()) { <div class="empty" role="status">Загружаем проекты…</div> }
+    @else if (error() && !context()) { <button (click)="load()">Повторить загрузку</button> }
+    @else if (overview()) {
+      <div class="page-heading"><div><h1>Требуют внимания</h1><p>Заблокированные и просроченные незавершённые задачи ваших активных проектов.</p></div>
+        <button (click)="refreshAttention()" [disabled]="attentionLoading()">Обновить обзор</button>
+      </div>
+      <p class="attention-hint">Сначала — заблокированные, затем — остальные просроченные. В каждой группе — по сроку, задачи без срока в конце. Откройте задачу, чтобы прочитать обсуждение, ответить или изменить её.</p>
+      @if (attentionLoading()) { <div class="empty" role="status">Загружаем обзор…</div> }
+      @else if (attentionError()) { <div role="alert" class="alert error">{{attentionError()}}</div><button (click)="refreshAttention()">Повторить загрузку обзора</button> }
+      @else if (attention(); as a) {
+        <section class="task-section attention-section" aria-label="Задачи, требующие внимания">
+          <div class="toolbar"><h2>Задачи <span>{{a.tasks.length}}</span></h2><span class="muted">По состоянию на {{a.server_now | date:'dd.MM.yyyy HH:mm:ss':'UTC'}} UTC</span></div>
+          <div class="attention-list">
+            @for (task of a.tasks; track task.id) {
+              <article class="attention-item">
+                <div class="attention-reasons">@if (task.blocked) { <span class="badge blocked">Заблокирована</span> } @if (task.overdue) { <span class="badge overdue">Просрочена</span> }</div>
+                <button class="task-title" (click)="openAttentionTask(task)"><span class="task-number">#{{task.id}}</span>{{task.title}}</button>
+                <p class="attention-project">{{task.project_name}}</p>
+                <div class="attention-meta"><span>Исполнитель: {{userName(task.assignee_id)}}</span><span>Срок: {{task.due_at ? (task.due_at | date:'dd.MM.yyyy HH:mm':'UTC') + ' UTC' : 'Без срока'}}</span></div>
+              </article>
+            } @empty { <div class="empty" role="status">Сейчас нет задач, требующих внимания по этим критериям.</div> }
+          </div>
+        </section>
+      }
+      <p class="footnote">Просрочка рассчитана сервером на момент обновления обзора. Часы браузера не используются. Выполненные задачи и архивные проекты исключены.</p>
+    }
+    @else if (project(); as p) {
       <div class="breadcrumb">Проекты <span>/</span> {{p.archived ? 'Архив' : 'Рабочее пространство'}}</div>
       <div class="page-heading"><div><h1>{{p.name}}</h1><p>{{p.description}}</p></div>
         @if (!p.archived) { <button class="primary" (click)="createTask()" [disabled]="loading() || saving()">＋ Новая задача</button> }
@@ -46,7 +75,7 @@
     @else { <div class="empty">У вас пока нет проектов.</div> }
   </main>
   @if (detail() || creating()) {
-    <aside class="detail" aria-label="Карточка задачи">
+    <aside #detailPanel tabindex="-1" class="detail" aria-label="Карточка задачи">
       <div class="drawer-heading"><span>{{creating() ? 'Новая задача' : 'Задача #' + detail()?.id}}</span><button aria-label="Закрыть карточку" (click)="closeDetail()">✕</button></div>
       <form (ngSubmit)="saveTask()">
         <fieldset [disabled]="project()?.archived || saving()">

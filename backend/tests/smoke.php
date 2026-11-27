@@ -135,6 +135,58 @@ try {
     check($listedTask['assignee_id'] === null && $listedTask['due_at'] === null && $listedTask['status'] === 'done' && $listedTask['version'] === 2, 'project list retains edits after removing assignee');
     check(request('GET', '/api/tasks/9999')[0] === 404, 'missing task returns 404');
     check(request('GET', '/api/unknown')[0] === 404, 'unknown route returns 404');
+    // Attention fixtures use past/future dates independent of the demo seed date.
+    $create = function (int $project, array $fields, int $user = 1): array {
+        [$status, $response] = request('POST', '/api/projects/' . $project . '/tasks', $fields, $user);
+        if ($status !== 201) throw new RuntimeException('Cannot create attention fixture');
+        return $response['data'];
+    };
+    $blocked = $create(1, ['title' => 'Blocked and overdue', 'status' => 'blocked', 'due_at' => '2000-01-01T00:00:00Z']);
+    $noDue = $create(2, ['title' => 'Blocked without deadline', 'status' => 'blocked']);
+    $futureBlocked = $create(1, ['title' => 'Blocked before deadline', 'status' => 'blocked', 'due_at' => '2999-01-01T00:00:00Z']);
+    $overdue = $create(3, ['title' => 'Overdue without assignee', 'due_at' => '2000-01-02T00:00:00Z']);
+    $future = $create(1, ['title' => 'Not due yet', 'due_at' => '2999-01-01T00:00:00Z']);
+    $done = $create(1, ['title' => 'Finished before review', 'status' => 'done', 'due_at' => '2000-01-01T00:00:00Z']);
+    $noSignal = $create(1, ['title' => 'Open without deadline']);
+    $hidden = $create(5, ['title' => 'Private blocker', 'status' => 'blocked'], 3);
+    $before = gmdate('Y-m-d\TH:i:s\Z');
+    [$status, $response] = request('GET', '/api/attention');
+    $after = gmdate('Y-m-d\TH:i:s\Z');
+    $overview = $response['data'];
+    check($status === 200 && $before <= $overview['server_now'] && $overview['server_now'] <= $after, 'attention uses current server time rather than seed time');
+    $byId = array_column($overview['tasks'], null, 'id');
+    check(isset($byId[$blocked['id']], $byId[$noDue['id']], $byId[$futureBlocked['id']], $byId[$overdue['id']]), 'attention includes blocked and overdue tasks across active projects');
+    check($byId[$blocked['id']]['blocked'] && $byId[$blocked['id']]['overdue'], 'combined reasons share a single task');
+    check($byId[$noDue['id']]['blocked'] && !$byId[$noDue['id']]['overdue'], 'blocked task without deadline is included');
+    check($byId[$futureBlocked['id']]['blocked'] && !$byId[$futureBlocked['id']]['overdue'], 'future blocker is not labelled overdue');
+    check(!$byId[$overdue['id']]['blocked'] && $byId[$overdue['id']]['overdue'] && $byId[$overdue['id']]['assignee_id'] === null, 'unassigned overdue task is included');
+    check(!isset($byId[$future['id']]) && !isset($byId[$noSignal['id']]), 'future and undated open tasks do not require attention');
+    check(!isset($byId[$done['id']]) && !isset($byId[3]) && !isset($byId[9]), 'completed tasks are excluded even when overdue');
+    check(!isset($byId[10]), 'archived project blocker is excluded');
+    check(!isset($byId[11]) && !isset($byId[$hidden['id']]), 'foreign project tasks are excluded for Anna');
+    check(count($byId) === count($overview['tasks']), 'attention contains no duplicate tasks');
+    $order = array_column($overview['tasks'], 'id');
+    check(array_search($blocked['id'], $order, true) < array_search($overdue['id'], $order, true) && array_search($futureBlocked['id'], $order, true) < array_search($noDue['id'], $order, true), 'attention puts blockers first and undated blockers last');
+    check($byId[$overdue['id']]['project_name'] === 'Обновление базы знаний', 'attention provides project name for navigation');
+    [$status, $response] = request('GET', '/api/tasks/' . $overdue['id']);
+    check($status === 200 && $response['data']['id'] === $overdue['id'] && $response['data']['comments'] === [], 'attention task opens through existing detail endpoint');
+    [$status, $response] = request('GET', '/api/attention', null, 2);
+    $boris = array_column($response['data']['tasks'], 'id');
+    check($status === 200 && in_array($noDue['id'], $boris, true) && !in_array($overdue['id'], $boris, true) && !in_array($hidden['id'], $boris, true), 'Boris attention respects his project membership');
+    [$status, $response] = request('GET', '/api/attention', null, 3);
+    $vera = array_column($response['data']['tasks'], 'id');
+    check($status === 200 && in_array($hidden['id'], $vera, true) && !in_array($noDue['id'], $vera, true), 'Vera attention includes her private project only for her');
+    check(request('GET', '/api/attention', null, 999)[0] === 401, 'attention rejects unknown demo user');
+    [$status] = request('PATCH', '/api/tasks/' . $overdue['id'], ['status' => 'done', 'version' => 1]);
+    check($status === 200, 'attention fixture can be completed');
+    [$status, $response] = request('GET', '/api/attention');
+    check($status === 200 && !in_array($overdue['id'], array_column($response['data']['tasks'], 'id'), true), 'completed task disappears from refreshed attention');
+    foreach ($response['data']['tasks'] as $remaining) {
+        [$status] = request('PATCH', '/api/tasks/' . $remaining['id'], ['status' => 'done', 'version' => $remaining['version']]);
+        if ($status !== 200) throw new RuntimeException('Cannot complete attention fixture');
+    }
+    [$status, $response] = request('GET', '/api/attention');
+    check($status === 200 && $response['data']['tasks'] === [], 'attention returns an empty list when nothing requires attention');
     echo "PASS: $count API checks\n";
 } catch (Throwable $error) {
     fwrite(STDERR, $error->getMessage() . PHP_EOL . file_get_contents($directory . '/server.log'));
