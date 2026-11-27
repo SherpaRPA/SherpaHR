@@ -1,8 +1,8 @@
-import { Component, inject, signal } from '@angular/core';
+import { afterNextRender, Component, ElementRef, inject, Injector, signal, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Api } from './api';
-import { Comment, Context, Project, Task, TaskDetail, TaskStatus } from './models';
+import { Attention, AttentionTask, Comment, Context, Project, Task, TaskDetail, TaskStatus } from './models';
 
 @Component({
   selector: 'app-root',
@@ -21,6 +21,10 @@ export class AppComponent {
   saving = signal(false);
   error = signal('');
   notice = signal('');
+  overview = signal(true);
+  attention = signal<Attention | null>(null);
+  attentionLoading = signal(false);
+  attentionError = signal('');
   status = '';
   search = '';
   comment = '';
@@ -28,6 +32,9 @@ export class AppComponent {
   draft = this.emptyDraft();
   private generation = 0;
   private detailGeneration = 0;
+  private attentionGeneration = 0;
+  private readonly injector = inject(Injector);
+  private readonly detailPanel = viewChild<ElementRef<HTMLElement>>('detailPanel');
   readonly statuses: { value: TaskStatus; label: string }[] = [
     { value: 'open', label: 'Открыта' }, { value: 'in_progress', label: 'В работе' },
     { value: 'blocked', label: 'Заблокирована' }, { value: 'done', label: 'Готово' },
@@ -48,7 +55,8 @@ export class AppComponent {
       this.context.set(context);
       this.projects.set(projects);
       const project = projects.find(p => p.id === this.project()?.id) ?? projects[0];
-      if (project) await this.selectProject(project);
+      if (this.overview()) await this.refreshAttention();
+      else if (project) await this.selectProject(project);
     } catch (error) {
       if (generation === this.generation) this.fail(error);
     } finally {
@@ -58,6 +66,10 @@ export class AppComponent {
 
   switchUser(value: string): void {
     this.api.userId = Number(value);
+    ++this.attentionGeneration;
+    this.attention.set(null);
+    this.attentionError.set('');
+    this.overview.set(true);
     this.project.set(null);
     this.projects.set([]);
     this.tasks.set([]);
@@ -66,8 +78,51 @@ export class AppComponent {
     void this.load();
   }
 
-  async selectProject(project: Project): Promise<void> {
+  async selectAttention(): Promise<void> {
+    ++this.generation;
+    this.loading.set(false);
+    this.overview.set(true);
+    this.project.set(null);
+    this.tasks.set([]);
+    this.error.set('');
+    this.notice.set('');
+    this.closeDetail();
+    await this.refreshAttention();
+  }
+
+  async refreshAttention(): Promise<void> {
+    const generation = ++this.attentionGeneration;
+    this.attentionLoading.set(true);
+    this.attentionError.set('');
+    try {
+      const attention = await this.api.request<Attention>('/attention');
+      if (generation === this.attentionGeneration) this.attention.set(attention);
+    } catch (error) {
+      if (generation === this.attentionGeneration) {
+        this.attention.set(null);
+        this.attentionError.set(error instanceof Error ? error.message : 'Не удалось загрузить обзор');
+      }
+    } finally {
+      if (generation === this.attentionGeneration) this.attentionLoading.set(false);
+    }
+  }
+
+  async openAttentionTask(task: AttentionTask): Promise<void> {
+    const project = this.projects().find(p => p.id === task.project_id && !p.archived);
+    if (!project || !await this.selectProject(project)) return;
+    const generation = this.detailGeneration + 1;
+    await this.openTask(task);
+    if (generation !== this.detailGeneration || this.detail()?.id !== task.id) return;
+    afterNextRender({ write: () => {
+      if (generation === this.detailGeneration && this.detail()?.id === task.id) {
+        this.detailPanel()?.nativeElement.focus();
+      }
+    } }, { injector: this.injector });
+  }
+
+  async selectProject(project: Project): Promise<boolean> {
     const generation = ++this.generation;
+    this.overview.set(false);
     this.loading.set(true);
     this.error.set('');
     this.notice.set('');
@@ -78,9 +133,12 @@ export class AppComponent {
     this.closeDetail();
     try {
       const tasks = await this.api.request<Task[]>(`/projects/${project.id}/tasks`);
-      if (generation === this.generation) this.tasks.set(tasks);
+      if (generation !== this.generation) return false;
+      this.tasks.set(tasks);
+      return true;
     } catch (error) {
       if (generation === this.generation) this.fail(error);
+      return false;
     } finally {
       if (generation === this.generation) this.loading.set(false);
     }
@@ -139,6 +197,7 @@ export class AppComponent {
         ...(existing ? { version: existing.version } : {}),
       };
       const task = await this.api.request<Task>(existing ? `/tasks/${existing.id}` : `/projects/${project.id}/tasks`, existing ? 'PATCH' : 'POST', data);
+      if (userId === this.api.userId) void this.refreshAttention();
       if (userId !== this.api.userId || this.project()?.id !== project.id) return;
       if (!existing) this.projects.update(list => list.map(p => p.id === project.id ? { ...p, task_count: p.task_count + 1 } : p));
       this.tasks.update(list => existing ? list.map(t => t.id === task.id ? task : t) : [...list, task]);

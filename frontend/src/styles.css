@@ -395,6 +395,17 @@ fieldset {
 .muted {
   color:#87939b;
 }
+.attention-link { margin-bottom:18px; }
+.attention-hint { color:#68757f; line-height:1.7; margin:20px 0; max-width:780px; }
+.attention-section { margin-top:24px; }
+.attention-section .toolbar { flex-wrap:wrap; font-size:11px; }
+.attention-item { padding:20px; border-bottom:1px solid #edf0f3; }
+.attention-item:last-child { border-bottom:0; }
+.attention-item .task-title { font-size:15px; line-height:1.6; overflow-wrap:anywhere; }
+.attention-reasons { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+.badge.overdue { background:#fff0ee; color:#983c30; }
+.attention-project { margin:8px 0; color:#596671; font-size:13px; }
+.attention-meta { display:flex; flex-wrap:wrap; gap:8px 24px; color:#74808a; font-size:12px; line-height:1.6; }
 @media(max-width:1150px) {
   .sidebar {
     width:210px;

@@ -5,3 +5,5 @@ export interface Task { id: number; project_id: number; title: string; descripti
 export interface Comment { id: number; task_id: number; user_id: number; body: string; created_at: string; author: string }
 export interface TaskDetail extends Task { comments: Comment[] }
 export interface Context { user: User; users: User[]; server_now: string; seeded_at: string }
+export interface AttentionTask extends Task { project_name: string; blocked: boolean; overdue: boolean }
+export interface Attention { server_now: string; tasks: AttentionTask[] }

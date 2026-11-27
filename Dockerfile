@@ -3,7 +3,7 @@ WORKDIR /build
 COPY frontend/package*.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
-RUN npm run build
+RUN npm test && npm run typecheck && npm run build
 
 FROM php:8.4-cli-bookworm
 RUN php -r 'exit(in_array("sqlite", PDO::getAvailableDrivers(), true) ? 0 : 1);'
