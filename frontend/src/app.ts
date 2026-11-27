@@ -12,6 +12,8 @@ import { Comment, Context, Project, Task, TaskDetail, TaskStatus } from './model
 })
 export class AppComponent {
   api = inject(Api);
+  attentionTasks = signal<any[]>([]);
+  showAttention = signal(false);
   context = signal<Context | null>(null);
   projects = signal<Project[]>([]);
   project = signal<Project | null>(null);
@@ -67,6 +69,7 @@ export class AppComponent {
   }
 
   async selectProject(project: Project): Promise<void> {
+    this.showAttention.set(false);
     const generation = ++this.generation;
     this.loading.set(true);
     this.error.set('');
@@ -178,5 +181,27 @@ export class AppComponent {
   private fail(error: unknown): void { this.error.set(error instanceof Error ? error.message : 'Не удалось выполнить запрос'); }
   private emptyDraft(): { title: string; description: string; status: TaskStatus; assignee_id: number | null; due_at: string } {
     return { title: '', description: '', status: 'open', assignee_id: null, due_at: '' };
+  }
+  async loadAttention(): Promise<void> {
+    this.showAttention.set(true);
+    this.project.set(null);
+    this.closeDetail();
+    this.loading.set(true);
+    this.error.set('');
+    try {
+      const tasks = await this.api.getAttention();
+      this.attentionTasks.set(tasks);
+    } catch (error) {
+      this.fail(error);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+  async openAttentionTask(task: any): Promise<void> {
+    const project = this.projects().find(p => p.id === task.project_id);
+    if (project) {
+      await this.selectProject(project);
+      await this.openTask(task);
+    }
   }
 }
