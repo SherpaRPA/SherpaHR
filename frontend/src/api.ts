@@ -14,4 +14,7 @@ export class Api {
     if (!response.ok) throw new Error(result.error ?? `Ошибка ${response.status}`);
     return result.data as T;
   }
+  async getAttention(): Promise<any[]> {
+    return this.request<any[]>('/attention');
+  }
 }

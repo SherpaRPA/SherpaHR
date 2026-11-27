@@ -8,18 +8,53 @@
   </label>
 </header>
 <div class="shell">
-  <nav class="sidebar" aria-label="Проекты">
-    <div class="nav-heading">Ваши проекты <span>{{projects().length}}</span></div>
-    @for (p of projects(); track p.id) {
-      <button class="project-link" [class.selected]="project()?.id === p.id" [attr.aria-current]="project()?.id === p.id ? 'page' : null" (click)="selectProject(p)">
-        <span class="project-icon">{{p.archived ? '▤' : '▧'}}</span><span>{{p.name}}<small>{{p.archived ? 'Архив' : p.task_count + ' задач'}}</small></span>
-      </button>
-    }
-    <div class="sidebar-note">Задачи, договорённости<br>и история команды.</div>
-  </nav>
+    <nav class="sidebar" aria-label="Проекты">
+        <div class="nav-heading">Ваши проекты <span>{{projects().length}}</span></div>
+        @for (p of projects(); track p.id) {
+            <button class="project-link" [class.selected]="!showAttention() && project()?.id === p.id" [attr.aria-current]="project()?.id === p.id ? 'page' : null" (click)="selectProject(p)">
+                <span class="project-icon">{{p.archived ? '▤' : '▧'}}</span><span>{{p.name}}<small>{{p.archived ? 'Архив' : p.task_count + ' задач'}}</small></span>
+            </button>
+        }
+
+        <!-- ДОБАВИТЬ СЮДА: -->
+        <button class="project-link" [class.selected]="showAttention()" (click)="loadAttention()" style="margin-top: 20px; color: #ff6b6b;">
+            <span class="project-icon">⚠️</span><span>Требует внимания</span>
+        </button>
+
+        <div class="sidebar-note">Задачи, договорённости<br>и история команды.</div>
+    </nav>
   <main>
     @if (error()) { <div role="alert" class="alert error">{{error()}}</div> }
     @if (notice()) { <div role="status" class="alert success">{{notice()}}</div> }
+      @if (showAttention()) {
+          <div class="breadcrumb">Требует внимания</div>
+          <div class="page-heading"><div><h1>Что требует внимания</h1><p>Задачи из ваших активных проектов, которые нужно проверить.</p></div></div>
+
+          @if (loading()) { <div class="empty" role="status">Загружаем задачи…</div> }
+          @else {
+              <div class="task-section">
+                  <div class="table-scroll"><table>
+                      <thead><tr><th>Задача</th><th>Проект</th><th>Причины</th><th>Действие</th></tr></thead>
+                      <tbody>
+                          @for (task of attentionTasks(); track task.id) {
+                              <tr>
+                                  <td><strong>#{{task.id}}</strong> {{task.title}}</td>
+                                  <td>{{task.project_name}}</td>
+                                  <td>
+                                      @for (r of task.reasons; track r) {
+                                          <span class="badge" style="background: #ffe0e0; color: #d32f2f; margin-right: 4px;">{{r}}</span>
+                                      }
+                                  </td>
+                                  <td><button class="primary" (click)="openAttentionTask(task)">Открыть</button></td>
+                              </tr>
+                          } @empty {
+                              <tr><td colspan="4" class="empty">Задач, требующих внимания, нет. Отличная работа!</td></tr>
+                          }
+                      </tbody>
+                  </table></div>
+              </div>
+          }
+      }
     @if (project(); as p) {
       <div class="breadcrumb">Проекты <span>/</span> {{p.archived ? 'Архив' : 'Рабочее пространство'}}</div>
       <div class="page-heading"><div><h1>{{p.name}}</h1><p>{{p.description}}</p></div>
